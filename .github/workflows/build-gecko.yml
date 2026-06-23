@@ -158,17 +158,35 @@ jobs:
       - name: Package Gecko dist
         shell: bash
         run: |
+          set -euo pipefail
           OBJDIR="engine/firefox/obj-aarch64-apple-ios"
           ASSET="gecko-ios-aarch64-dist.tar.zst"
+          STAGE="_package/gecko-ios-aarch64"
           test -d "$OBJDIR/dist/bin"
-          tar --zstd -cf "$ASSET" -C "$OBJDIR" dist
-          ls -lh "$ASSET"
+
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+          # The Gecko dist contains symlinks into the builder workspace.
+          # Materialize them so downstream repositories can consume the tarball.
+          rsync -aL "$OBJDIR/dist/" "$STAGE/dist/"
+
+          if find "$STAGE/dist" -type l -print -quit | grep -q .; then
+            echo "::error::Packaged Gecko dist still contains symlinks"
+            find "$STAGE/dist" -type l -ls | head -50
+            exit 1
+          fi
+
+          tar --zstd -cf "$ASSET" -C "$STAGE" dist
+          shasum -a 256 "$ASSET" | tee "$ASSET.sha256"
+          ls -lh "$ASSET" "$ASSET.sha256"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: gecko-ios-aarch64-dist
-          path: gecko-ios-aarch64-dist.tar.zst
+          path: |
+            gecko-ios-aarch64-dist.tar.zst
+            gecko-ios-aarch64-dist.tar.zst.sha256
           if-no-files-found: error
 
       - name: Resolve GitHub Release tag
@@ -187,7 +205,9 @@ jobs:
         with:
           tag_name: ${{ steps.release.outputs.tag }}
           name: ${{ steps.release.outputs.tag }}
-          files: gecko-ios-aarch64-dist.tar.zst
+          files: |
+            gecko-ios-aarch64-dist.tar.zst
+            gecko-ios-aarch64-dist.tar.zst.sha256
           make_latest: false
           fail_on_unmatched_files: true
           overwrite_files: true

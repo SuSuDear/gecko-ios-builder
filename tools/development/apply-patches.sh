@@ -23,6 +23,16 @@ fi
 
 find "$PATCH_DIR" -type f -name '*.patch' | sort | while IFS= read -r patch_file; do
   rel_path="${patch_file#$PATCH_DIR/}"
+  delete_path="$(awk '
+    /^deleted file mode / { deleted = 1 }
+    deleted && /^--- a\// { sub(/^--- a\//, ""); print; exit }
+  ' "$patch_file")"
+  if [ -n "$delete_path" ] && \
+     ! git -C "$FIREFOX_DIR" ls-files --error-unmatch -- "$delete_path" >/dev/null 2>&1; then
+    echo "Skipping $rel_path; delete target is not present in this Firefox tag."
+    continue
+  fi
+
   echo "Applying $rel_path..."
   git -C "$FIREFOX_DIR" apply --3way --whitespace=nowarn "$patch_file"
 done

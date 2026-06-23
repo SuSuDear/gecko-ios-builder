@@ -123,11 +123,26 @@ jobs:
           restore-keys: |
             gecko-build-${{ runner.os }}-${{ steps.gecko-tag.outputs.tag }}-
 
+      - name: Check restored Gecko dist
+        id: restored-gecko-dist
+        shell: bash
+        run: |
+          OBJDIR="engine/firefox/obj-aarch64-apple-ios"
+          if [ -d "$OBJDIR/dist/bin" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "Using restored Gecko dist from cache."
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "No restored Gecko dist found; building Gecko."
+          fi
+
       - name: Fetch Mozilla toolchain artifacts
+        if: steps.restored-gecko-dist.outputs.found != 'true'
         working-directory: engine/firefox
         run: ./mach configure 2>&1 | tail -200
 
       - name: Build Gecko engine
+        if: steps.restored-gecko-dist.outputs.found != 'true'
         run: ./tools/development/build-gecko.sh
 
       - name: Inspect Gecko output
@@ -156,12 +171,23 @@ jobs:
           path: gecko-ios-aarch64-dist.tar.zst
           if-no-files-found: error
 
+      - name: Resolve GitHub Release tag
+        id: release
+        shell: bash
+        run: |
+          tag="${{ github.event.inputs.release_tag }}"
+          if [ -z "$tag" ]; then
+            tag="gecko-ios-aarch64-zh"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Release tag: $tag"
+
       - name: Publish GitHub Release asset
-        if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.release_tag }}
-          name: ${{ inputs.release_tag }}
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: ${{ steps.release.outputs.tag }}
           files: gecko-ios-aarch64-dist.tar.zst
           make_latest: false
           fail_on_unmatched_files: true
+          overwrite_files: true

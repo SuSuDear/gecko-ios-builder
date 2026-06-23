@@ -195,7 +195,7 @@ jobs:
         run: |
           tag="${{ github.event.inputs.release_tag }}"
           if [ -z "$tag" ]; then
-            tag="gecko-ios-aarch64-zh"
+            tag="gecko-ios-aarch64-portable"
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Release tag: $tag"

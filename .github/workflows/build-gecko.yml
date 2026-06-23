@@ -170,6 +170,15 @@ jobs:
           # Materialize them so downstream repositories can consume the tarball.
           rsync -aL "$OBJDIR/dist/" "$STAGE/dist/"
 
+          DEFAULT_THEME_SRC="engine/firefox/toolkit/mozapps/extensions/default-theme"
+          if [ -d "$DEFAULT_THEME_SRC" ]; then
+            rm -rf "$STAGE/dist/bin/default-theme"
+            mkdir -p "$STAGE/dist/bin/default-theme"
+            rsync -aL "$DEFAULT_THEME_SRC/" "$STAGE/dist/bin/default-theme/"
+          else
+            echo "::warning::Missing $DEFAULT_THEME_SRC; packaged dist will not include default-theme"
+          fi
+
           if find "$STAGE/dist" -type l -print -quit | grep -q .; then
             echo "::error::Packaged Gecko dist still contains symlinks"
             find "$STAGE/dist" -type l -ls | head -50

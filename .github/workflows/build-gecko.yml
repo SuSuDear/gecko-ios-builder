@@ -123,21 +123,25 @@ jobs:
           path: |
             engine/firefox/obj-aarch64-apple-ios
             ~/.mozbuild
-          key: gecko-build-${{ runner.os }}-${{ steps.gecko-tag.outputs.tag }}-${{ hashFiles('patches/**/*.patch', 'tools/development/build-gecko.sh') }}-v1
+          key: gecko-build-${{ runner.os }}-${{ steps.gecko-tag.outputs.tag }}-${{ hashFiles('patches/**/*.patch', 'tools/development/build-gecko.sh') }}-v2
           restore-keys: |
-            gecko-build-${{ runner.os }}-${{ steps.gecko-tag.outputs.tag }}-
+            gecko-build-${{ runner.os }}-${{ steps.gecko-tag.outputs.tag }}-${{ hashFiles('patches/**/*.patch', 'tools/development/build-gecko.sh') }}-
 
       - name: Check restored Gecko dist
         id: restored-gecko-dist
         shell: bash
         run: |
+          set -euo pipefail
           OBJDIR="engine/firefox/obj-aarch64-apple-ios"
-          if [ -d "$OBJDIR/dist/bin" ]; then
+          MOBILE_PREF="$OBJDIR/dist/bin/defaults/pref/mobile.js"
+          EXPECTED='pref("intl.accept_languages", "zh-CN, zh, zh-TW, zh-HK, en-US, en", locked);'
+          if [ -d "$OBJDIR/dist/bin" ] && grep -Fq "$EXPECTED" "$MOBILE_PREF" 2>/dev/null; then
             echo "found=true" >> "$GITHUB_OUTPUT"
             echo "Using restored Gecko dist from cache."
           else
+            rm -rf "$OBJDIR"
             echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "No restored Gecko dist found; building Gecko."
+            echo "No matching restored Gecko dist found; building Gecko."
           fi
 
       - name: Fetch Mozilla toolchain artifacts

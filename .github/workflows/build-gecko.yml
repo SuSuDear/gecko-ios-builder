@@ -85,14 +85,18 @@ jobs:
         if: steps.cache-firefox-src.outputs.cache-hit == 'true'
         run: git -C engine/firefox rev-parse --short HEAD
 
-      - name: Apply patches
+      - name: Reset cached Firefox source
         shell: bash
         run: |
-          if git -C engine/firefox diff --quiet; then
-            ./tools/development/apply-patches.sh
-          else
-            echo "engine/firefox already has working-tree modifications; assuming patches applied."
-          fi
+          # Source caches can contain files left after a previous patch run.
+          git -C engine/firefox reset --hard HEAD
+          git -C engine/firefox clean -fd
+          git -C engine/firefox diff --quiet
+          git -C engine/firefox diff --cached --quiet
+
+      - name: Apply patches
+        shell: bash
+        run: ./tools/development/apply-patches.sh
 
       - name: Cache Cargo registry and target
         uses: actions/cache@v4

@@ -16,7 +16,8 @@ if [ ! -d "$PATCH_DIR" ]; then
   exit 1
 fi
 
-if ! git -C "$FIREFOX_DIR" diff --quiet --ignore-submodules --; then
+if ! git -C "$FIREFOX_DIR" diff --quiet --ignore-submodules -- || \
+   ! git -C "$FIREFOX_DIR" diff --cached --quiet --ignore-submodules --; then
   echo "$FIREFOX_DIR has tracked changes. Refusing to apply patches twice."
   exit 1
 fi

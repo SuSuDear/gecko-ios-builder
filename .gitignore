@@ -1,0 +1,5 @@
+.DS_Store
+engine/firefox/
+engine/firefox-*.tar.*
+*.tar.zst
+*.tar.gz

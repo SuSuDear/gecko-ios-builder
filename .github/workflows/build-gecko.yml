@@ -1,0 +1,144 @@
+name: Build Gecko iOS dist
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'GitHub Release tag to publish asset to'
+        required: true
+        default: 'gecko-ios-aarch64-zh'
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  build-gecko:
+    runs-on: macos-15
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout builder repo
+        uses: actions/checkout@v4
+
+      - name: Read Firefox release tag
+        id: gecko-tag
+        shell: bash
+        run: |
+          tag="$(tr -d '\000\r' < engine/release.txt | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+          if [ -z "$tag" ]; then
+            echo "::error::engine/release.txt is empty"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Firefox tag: $tag"
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          brew update
+          brew install ldid lld
+          python3 -m pip install --upgrade pip
+          python3 -m pip install zstandard
+
+      - name: Cache Firefox source
+        id: cache-firefox-src
+        uses: actions/cache@v4
+        with:
+          path: engine/firefox
+          key: firefox-src-${{ steps.gecko-tag.outputs.tag }}-v1
+
+      - name: Fetch Firefox source
+        if: steps.cache-firefox-src.outputs.cache-hit != 'true'
+        run: ./tools/development/fetch-firefox.sh
+
+      - name: Ensure Firefox source exists after cache restore
+        if: steps.cache-firefox-src.outputs.cache-hit == 'true'
+        run: git -C engine/firefox rev-parse --short HEAD
+
+      - name: Apply patches
+        shell: bash
+        run: |
+          if git -C engine/firefox diff --quiet; then
+            ./tools/development/apply-patches.sh
+          else
+            echo "engine/firefox already has working-tree modifications; assuming patches applied."
+          fi
+
+      - name: Cache Cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+          key: cargo-${{ runner.os }}-${{ hashFiles('engine/firefox/**/Cargo.lock', 'engine/firefox/**/Cargo.toml') }}-v1
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Install Rust-based build tools
+        shell: bash
+        run: |
+          if ! command -v cbindgen >/dev/null 2>&1; then
+            cargo install --locked cbindgen
+          fi
+          cbindgen --version
+
+      - name: Cache Gecko build directory
+        uses: actions/cache@v4
+        with:
+          path: |
+            engine/firefox/obj-aarch64-apple-ios
+            ~/.mozbuild
+          key: gecko-build-${{ runner.os }}-${{ steps.gecko-tag.outputs.tag }}-${{ hashFiles('patches/**/*.patch', 'tools/development/build-gecko.sh') }}-v1
+          restore-keys: |
+            gecko-build-${{ runner.os }}-${{ steps.gecko-tag.outputs.tag }}-
+
+      - name: Fetch Mozilla toolchain artifacts
+        working-directory: engine/firefox
+        run: ./mach configure 2>&1 | tail -200
+
+      - name: Build Gecko engine
+        run: ./tools/development/build-gecko.sh
+
+      - name: Inspect Gecko output
+        shell: bash
+        run: |
+          OBJDIR="engine/firefox/obj-aarch64-apple-ios"
+          if [ ! -d "$OBJDIR/dist/bin" ]; then
+            echo "::error::Gecko build did not produce $OBJDIR/dist/bin"
+            exit 1
+          fi
+          ls -la "$OBJDIR/dist/bin" | head -40
+
+      - name: Package Gecko dist
+        shell: bash
+        run: |
+          OBJDIR="engine/firefox/obj-aarch64-apple-ios"
+          ASSET="gecko-ios-aarch64-dist.tar.zst"
+          test -d "$OBJDIR/dist/bin"
+          tar --zstd -cf "$ASSET" -C "$OBJDIR" dist
+          ls -lh "$ASSET"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gecko-ios-aarch64-dist
+          path: gecko-ios-aarch64-dist.tar.zst
+          if-no-files-found: error
+
+      - name: Publish GitHub Release asset
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          name: ${{ inputs.release_tag }}
+          files: gecko-ios-aarch64-dist.tar.zst
+          make_latest: false
+          fail_on_unmatched_files: true

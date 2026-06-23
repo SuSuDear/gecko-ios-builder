@@ -44,8 +44,11 @@ jobs:
         run: |
           brew update
           brew install ldid lld
-          python3 -m pip install --upgrade pip
-          python3 -m pip install zstandard
+          python3 -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install zstandard
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Cache Firefox source
         id: cache-firefox-src

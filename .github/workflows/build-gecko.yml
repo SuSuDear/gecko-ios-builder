@@ -141,8 +141,36 @@ jobs:
           set -euo pipefail
           OBJDIR="engine/firefox/obj-aarch64-apple-ios"
           MOBILE_PREF="$OBJDIR/dist/bin/defaults/pref/mobile.js"
-          EXPECTED='pref("intl.accept_languages", "zh-CN, zh, zh-TW, zh-HK, en-US, en", locked);'
-          if [ -d "$OBJDIR/dist/bin" ] && grep -Fq "$EXPECTED" "$MOBILE_PREF" 2>/dev/null; then
+          OMNI="$OBJDIR/dist/bin/omni.ja"
+          EXPECTED_PREF='pref("intl.accept_languages", "zh-CN, zh, zh-TW, zh-HK, en-US, en", locked);'
+          DIST_OK=false
+
+          if [ -d "$OBJDIR/dist/bin" ] &&              grep -Fq "$EXPECTED_PREF" "$MOBILE_PREF" 2>/dev/null &&              [ -f "$OMNI" ]; then
+            if python3 - "$OMNI" <<'PY'
+          import sys
+          import zipfile
+
+          omni = sys.argv[1]
+          needles = {
+              "Extension.sys.mjs": '["zh-CN", "zh", ...Services.locale.appLocalesAsBCP47]',
+              "ExtensionCommon.sys.mjs": 'return "zh-CN";',
+          }
+
+          with zipfile.ZipFile(omni) as z:
+              names = z.namelist()
+              for suffix, needle in needles.items():
+                  matches = [name for name in names if name.endswith(suffix)]
+                  if not matches:
+                      raise SystemExit(1)
+                  if not any(needle in z.read(name).decode("utf-8", "replace") for name in matches):
+                      raise SystemExit(1)
+          PY
+            then
+              DIST_OK=true
+            fi
+          fi
+
+          if [ "$DIST_OK" = true ]; then
             echo "found=true" >> "$GITHUB_OUTPUT"
             echo "Using restored Gecko dist from cache."
           else

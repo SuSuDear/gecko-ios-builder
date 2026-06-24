@@ -178,11 +178,6 @@ jobs:
             echo "No matching restored Gecko dist found; building Gecko with restored objdir if available."
           fi
 
-      - name: Fetch Mozilla toolchain artifacts
-        if: steps.restored-gecko-dist.outputs.found != 'true'
-        working-directory: engine/firefox
-        run: ./mach configure 2>&1 | tail -200
-
       - name: Build Gecko engine
         if: steps.restored-gecko-dist.outputs.found != 'true'
         run: ./tools/development/build-gecko.sh

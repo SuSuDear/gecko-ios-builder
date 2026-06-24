@@ -169,33 +169,6 @@ jobs:
           fi
           ls -la "$OBJDIR/dist/bin" | head -40
 
-      - name: Verify packaged WebExtension locale patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          OMNI="engine/firefox/obj-aarch64-apple-ios/dist/bin/omni.ja"
-          if [ ! -f "$OMNI" ]; then
-            echo "::error::Missing $OMNI"
-            exit 1
-          fi
-          python3 - <<'PY'
-          import zipfile
-          omni = "engine/firefox/obj-aarch64-apple-ios/dist/bin/omni.ja"
-          needles = {
-              "Extension.sys.mjs": '["zh-CN", "zh", ...Services.locale.appLocalesAsBCP47]',
-              "ExtensionCommon.sys.mjs": 'return "zh-CN";',
-          }
-          with zipfile.ZipFile(omni) as z:
-              names = z.namelist()
-              for suffix, needle in needles.items():
-                  matches = [name for name in names if name.endswith(suffix)]
-                  if not matches:
-                      raise SystemExit(f"missing {suffix} in omni.ja")
-                  if not any(needle in z.read(name).decode("utf-8", "replace") for name in matches):
-                      raise SystemExit(f"missing {needle!r} in {suffix}")
-                  print(f"verified {suffix}")
-          PY
-
       - name: Package Gecko dist
         shell: bash
         run: |

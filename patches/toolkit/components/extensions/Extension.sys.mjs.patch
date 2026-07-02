@@ -31,7 +31,6 @@ index c8cb26a405d1..d166e2e08b4 100644
    _processSpawningDisabled: false,
 
    // Technically there is at most one child extension process,
-
 @@ -3892,7 +3892,7 @@ export class Extension extends ExtensionData {
        let locales = await this.promiseLocales();
 

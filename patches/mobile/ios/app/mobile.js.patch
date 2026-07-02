@@ -45,7 +45,7 @@ index e835b1c33d86..29aed66bcdc 100644
  // Use software webrender on simulator due to missing APIs.
  #if TARGET_OS_SIMULATOR
    pref("gfx.webrender.software", true);
-@@ -13,6 +46,12 @@ pref("toolkit.defaultChromeURI", "chrome://geckoview/content/geckoview.xhtml");
+@@ -13,6 +43,12 @@ pref("toolkit.defaultChromeURI", "chrome://geckoview/content/geckoview.xhtml");
  // Enable the restricted sandbox for content processes.
  pref("security.sandbox.content.level", 1);
  
